@@ -1,25 +1,38 @@
 /* ═══════════════════════════════════════════════════════════════════
-   AUDIO SPLITTER — Frontend Controller Logic
-   Refined Lucide icons support, dynamic timer, stem mixers & animations
+   DEMUCS STUDIO — FRONTEND CONTROLLER
+   Responsive UI Orchestrator, Live Spectrum Animation & Stem Playback
    ═══════════════════════════════════════════════════════════════════ */
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
-// ── DOM References ──
-const uploadZone = $("#uploadZone");
+// App State
+let selectedFile = null;
+let currentJobId = null;
+let pollInterval = null;
+let timerInterval = null;
+let startTime = null;
+
+// DOM Elements
 const fileInput = $("#fileInput");
-const uploadContent = $("#uploadContent");
-const fileDetails = $("#fileDetails");
+const dropzone = $("#dropzone");
+const dropIdleState = $("#dropIdleState");
+const dropActiveState = $("#dropActiveState");
+const browseBtn = $("#browseBtn");
 const fileName = $("#fileName");
 const fileSize = $("#fileSize");
+const fileExt = $("#fileExt");
 const removeFileBtn = $("#removeFileBtn");
-const processBtn = $("#processBtn");
+const startBtn = $("#startBtn");
+const actionStatusText = $("#actionStatusText");
 
+const workspaceContainer = $("#workspaceContainer");
 const processingSection = $("#processingSection");
-const progressMsg = $("#progressMsg");
 const progressBar = $("#progressBar");
-const elapsedTimer = $("#elapsedTimer");
+const progressPercent = $("#progressPercent");
+const statusMessage = $("#statusMessage");
+const timeElapsed = $("#timeElapsed");
+const procEngine = $("#procEngine");
 
 const resultsSection = $("#resultsSection");
 const stemsContainer = $("#stemsContainer");
@@ -30,293 +43,317 @@ const errorSection = $("#errorSection");
 const errorMsg = $("#errorMsg");
 const retryBtn = $("#retryBtn");
 
-// ── State ──
-let selectedFile = null;
-let selectedModel = "htdemucs";
-let selectedStems = "vocals";
-let currentJobId = null;
-let pollInterval = null;
-let timerInterval = null;
-let startTime = null;
-
-// ── Lucide Icon Refresh Helper ──
-function refreshIcons() {
+// Initialize Lucide icons helper
+function renderIcons() {
   if (window.lucide && typeof window.lucide.createIcons === "function") {
     window.lucide.createIcons();
   }
 }
 
-// ── Model Selection Handler ──
-$$("#modelCards .opt-btn").forEach((card) => {
-  card.addEventListener("click", () => {
-    $$("#modelCards .opt-btn").forEach((c) => c.classList.remove("active"));
-    card.classList.add("active");
-    selectedModel = card.dataset.model;
-  });
-});
+// ── File Handling ──────────────────────────────────────────────
+function formatBytes(bytes, decimals = 2) {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+}
 
-// ── Stems Selection Handler ──
-$$("#stemsCards .opt-btn").forEach((card) => {
-  card.addEventListener("click", () => {
-    $$("#stemsCards .opt-btn").forEach((c) => c.classList.remove("active"));
-    card.classList.add("active");
-    selectedStems = card.dataset.stems;
-  });
-});
+function handleFileSelect(file) {
+  if (!file) return;
 
-// ── Drag & Drop Events ──
-uploadZone.addEventListener("click", (e) => {
-  if (e.target.closest("#removeFileBtn")) return;
-  fileInput.click();
-});
+  const validExts = ["mp3", "wav", "ogg", "m4a", "flac"];
+  const ext = file.name.split(".").pop().toLowerCase();
 
-uploadZone.addEventListener("dragover", (e) => {
-  e.preventDefault();
-  uploadZone.classList.add("drag-over");
-});
-
-uploadZone.addEventListener("dragleave", (e) => {
-  e.preventDefault();
-  uploadZone.classList.remove("drag-over");
-});
-
-uploadZone.addEventListener("drop", (e) => {
-  e.preventDefault();
-  uploadZone.classList.remove("drag-over");
-  if (e.dataTransfer.files.length > 0) {
-    handleFile(e.dataTransfer.files[0]);
-  }
-});
-
-fileInput.addEventListener("change", () => {
-  if (fileInput.files.length > 0) {
-    handleFile(fileInput.files[0]);
-  }
-});
-
-// ── File Ingestion ──
-function handleFile(file) {
-  const allowed = [".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".wma"];
-  const ext = "." + file.name.split(".").pop().toLowerCase();
-  
-  if (!allowed.includes(ext)) {
-    showError("Formato não suportado. Por favor, envie arquivos de áudio válidos: MP3, WAV, FLAC, OGG, M4A ou AAC.");
+  if (!validExts.includes(ext)) {
+    alert("Formato não suportado. Utilize MP3, WAV, FLAC, M4A ou OGG.");
     return;
   }
 
   if (file.size > 100 * 1024 * 1024) {
-    showError("Arquivo muito grande. O limite máximo para separação na nuvem é de 100MB.");
+    alert("O arquivo excede o limite de 100MB.");
     return;
   }
 
   selectedFile = file;
-  fileName.textContent = file.name;
-  fileSize.textContent = (file.size / (1024 * 1024)).toFixed(1) + " MB";
 
-  uploadContent.style.display = "none";
-  fileDetails.style.display = "flex";
-  processBtn.disabled = false;
-  hideError();
-  refreshIcons();
+  // Update UI Elements
+  fileName.textContent = file.name;
+  fileSize.textContent = formatBytes(file.size);
+  fileExt.textContent = ext.toUpperCase();
+
+  dropIdleState.style.display = "none";
+  dropActiveState.style.display = "block";
+
+  startBtn.disabled = false;
+  if (actionStatusText) {
+    actionStatusText.textContent = "Arquivo pronto. Pronto para isolar as faixas com IA.";
+  }
+
+  renderIcons();
 }
 
-removeFileBtn.addEventListener("click", (e) => {
-  e.stopPropagation();
-  resetFile();
-});
-
-function resetFile() {
+function clearFile() {
   selectedFile = null;
   fileInput.value = "";
-  uploadContent.style.display = "flex";
-  fileDetails.style.display = "none";
-  processBtn.disabled = true;
-  refreshIcons();
+  dropIdleState.style.display = "flex";
+  dropActiveState.style.display = "none";
+  startBtn.disabled = true;
+  if (actionStatusText) {
+    actionStatusText.textContent = "Selecione uma faixa para liberar a inferência neural";
+  }
 }
 
-// ── Timer Logic ──
+// Drag & Drop Listeners
+if (dropzone) {
+  dropzone.addEventListener("click", (e) => {
+    if (e.target.closest("#removeFileBtn")) return;
+    fileInput.click();
+  });
+
+  dropzone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropzone.classList.add("drag-active");
+  });
+
+  ["dragleave", "dragend"].forEach((evt) => {
+    dropzone.addEventListener(evt, () => {
+      dropzone.classList.remove("drag-active");
+    });
+  });
+
+  dropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropzone.classList.remove("drag-active");
+    if (e.dataTransfer.files.length) {
+      handleFileSelect(e.dataTransfer.files[0]);
+    }
+  });
+}
+
+if (browseBtn) {
+  browseBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    fileInput.click();
+  });
+}
+
+if (fileInput) {
+  fileInput.addEventListener("change", (e) => {
+    if (e.target.files.length) {
+      handleFileSelect(e.target.files[0]);
+    }
+  });
+}
+
+if (removeFileBtn) {
+  removeFileBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    clearFile();
+  });
+}
+
+// ── Model Selection Logic ──────────────────────────────────────
+const modelCards = $$(".model-card");
+modelCards.forEach((card) => {
+  card.addEventListener("click", () => {
+    modelCards.forEach((c) => c.classList.remove("active"));
+    card.classList.add("active");
+    const radio = card.querySelector('input[type="radio"]');
+    if (radio) radio.checked = true;
+  });
+});
+
+function getSelectedModel() {
+  const checked = document.querySelector('input[name="modelChoice"]:checked');
+  return checked ? checked.value : "htdemucs";
+}
+
+// ── Timer & Progress Helpers ──────────────────────────────────
 function startTimer() {
   startTime = Date.now();
-  if (timerInterval) clearInterval(timerInterval);
+  if (timeElapsed) timeElapsed.textContent = "00:00";
+  clearInterval(timerInterval);
   timerInterval = setInterval(() => {
-    const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
-    const mins = String(Math.floor(elapsedSeconds / 60)).padStart(2, "0");
-    const secs = String(elapsedSeconds % 60).padStart(2, "0");
-    elapsedTimer.textContent = `${mins}:${secs}`;
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const m = String(Math.floor(elapsed / 60)).padStart(2, "0");
+    const s = String(elapsed % 60).padStart(2, "0");
+    if (timeElapsed) timeElapsed.textContent = `${m}:${s}`;
   }, 1000);
 }
 
 function stopTimer() {
-  if (timerInterval) {
-    clearInterval(timerInterval);
-    timerInterval = null;
-  }
+  clearInterval(timerInterval);
 }
 
-// ── Submit Processing Job ──
-processBtn.addEventListener("click", async () => {
+function setProgress(pct, msg) {
+  if (progressBar) progressBar.style.width = `${pct}%`;
+  if (progressPercent) progressPercent.textContent = `${pct}%`;
+  if (statusMessage) statusMessage.textContent = msg;
+}
+
+// ── Job Submission & Polling ──────────────────────────────────
+async function startSeparation() {
   if (!selectedFile) return;
 
-  hideAll();
+  const model = getSelectedModel();
+
+  // Switch UI to Processing mode
+  workspaceContainer.style.display = "none";
+  errorSection.style.display = "none";
+  resultsSection.style.display = "none";
   processingSection.style.display = "block";
-  progressMsg.textContent = "Fazendo upload seguro e enfileirando no pipeline Demucs...";
-  progressBar.style.width = "15%";
+
+  if (procEngine) {
+    procEngine.textContent = model.toUpperCase();
+  }
+
+  setProgress(5, "Enviando arquivo de áudio para o servidor...");
   startTimer();
-  refreshIcons();
 
   const formData = new FormData();
   formData.append("audio", selectedFile);
-  formData.append("model", selectedModel);
-  formData.append("stems", selectedStems);
+  formData.append("model", model);
 
   try {
-    const res = await fetch("/api/split", {
+    const res = await fetch("/api/separate", {
       method: "POST",
       body: formData,
     });
 
-    const data = await res.json();
-
     if (!res.ok) {
-      throw new Error(data.error || "Erro ao iniciar o processamento");
+      const err = await res.json();
+      throw new Error(err.error || "Falha ao enviar arquivo.");
     }
 
+    const data = await res.json();
     currentJobId = data.jobId;
-    pollStatus(currentJobId);
+
+    setProgress(15, "Separando frequências espectrais e isolando faixas...");
+    startPolling(currentJobId);
   } catch (err) {
-    stopTimer();
     showError(err.message);
   }
-});
+}
 
-// ── Job Polling ──
-function pollStatus(jobId) {
-  if (pollInterval) clearInterval(pollInterval);
-
+function startPolling(jobId) {
+  clearInterval(pollInterval);
   pollInterval = setInterval(async () => {
     try {
-      const res = await fetch(`/api/status/${jobId}`);
-      const job = await res.json();
+      const res = await fetch(`/api/job/${jobId}`);
+      if (!res.ok) return;
 
-      if (job.message) {
-        progressMsg.textContent = job.message;
-      }
+      const data = await res.json();
 
-      if (job.progress) {
-        progressBar.style.width = `${job.progress}%`;
-      }
-
-      if (job.status === "completed") {
+      if (data.status === "processing") {
+        setProgress(data.progress || 45, data.step || "Processando camadas com Demucs v4...");
+      } else if (data.status === "completed") {
         clearInterval(pollInterval);
         stopTimer();
-        progressBar.style.width = "100%";
-        progressMsg.textContent = "Mixdown finalizado com sucesso!";
-        setTimeout(() => showResults(job), 600);
-      }
-
-      if (job.status === "error") {
+        setProgress(100, "Concluído com fidelidade de estúdio!");
+        setTimeout(() => renderResults(data), 600);
+      } else if (data.status === "error") {
         clearInterval(pollInterval);
         stopTimer();
-        showError(job.error || "Falha durante o processamento acústico neural.");
+        showError(data.error || "Erro no processamento neural.");
       }
     } catch {
-      // Network hiccup, keep retrying
+      // Ignorar oscilações de rede temporárias
     }
   }, 1500);
 }
 
-// ── Render Results Deck ──
+// ── Stem Presentation & Audio Players ──────────────────────────
 const STEM_PRESETS = {
-  vocals: { name: "Vocal Principal & Coro", cat: "Acapella Lead", icon: "mic", cls: "stem-vocals" },
-  instrumental: { name: "Playback Instrumental", cat: "Backing Track", icon: "music", cls: "stem-instrumental" },
-  no_vocals: { name: "Playback Instrumental", cat: "Backing Track", icon: "music", cls: "stem-instrumental" },
-  drums: { name: "Bateria & Percussão", cat: "Rhythm & Transient", icon: "disc", cls: "stem-drums" },
-  bass: { name: "Baixo & Sub-Frequências", cat: "Low-End Spectrum", icon: "activity", cls: "stem-bass" },
-  other: { name: "Sintetizadores & Guitarras", cat: "Harmonics & FX", icon: "sliders", cls: "stem-other" }
+  vocals: { name: "Vocal Principal & Coro", cat: "Acapella Lead", icon: "mic", color: "var(--stem-voc)" },
+  instrumental: { name: "Playback Instrumental", cat: "Backing Track", icon: "music", color: "var(--stem-ins)" },
+  no_vocals: { name: "Playback Instrumental", cat: "Backing Track", icon: "music", color: "var(--stem-ins)" },
+  drums: { name: "Bateria & Percussão", cat: "Rhythm & Beats", icon: "disc", color: "var(--stem-drm)" },
+  bass: { name: "Baixo & Sub-Graves", cat: "Low Frequency Engine", icon: "activity", color: "var(--stem-bas)" },
+  other: { name: "Harmonia & Sintetizadores", cat: "Melodic Textures", icon: "sliders", color: "var(--stem-oth)" },
+  guitar: { name: "Guitarras & Violões", cat: "Acoustic & Electric Strum", icon: "zap", color: "var(--stem-gtr)" },
+  piano: { name: "Piano & Teclas", cat: "Acoustic Keys & Chords", icon: "grid", color: "var(--stem-pno)" },
 };
 
-function showResults(job) {
-  hideAll();
-  resultsSection.style.display = "flex";
+function renderResults(data) {
+  processingSection.style.display = "none";
+  resultsSection.style.display = "block";
   stemsContainer.innerHTML = "";
 
-  const stems = job.stems || {};
+  if (data.zipUrl) {
+    downloadAllBtn.href = data.zipUrl;
+    downloadAllBtn.download = `${data.originalName || "demucs"}_stems.zip`;
+  }
+
+  const stems = data.stems || {};
   const entries = Object.entries(stems);
 
-  entries.forEach(([key, info]) => {
-    const meta = STEM_PRESETS[key] || {
+  entries.forEach(([key, stemData]) => {
+    const preset = STEM_PRESETS[key] || {
       name: key.toUpperCase(),
-      cat: "Audio Track",
+      cat: "Extracted Stem",
       icon: "volume-2",
-      cls: "stem-other"
+      color: "var(--accent-gold)",
     };
 
     const card = document.createElement("div");
-    card.className = `stem-channel-card ${meta.cls}`;
+    card.className = "stem-card";
     card.innerHTML = `
-      <div class="stem-meta">
-        <div class="stem-badge-tag">
-          <i data-lucide="${meta.icon}"></i>
-        </div>
+      <div class="stem-top-bar">
         <div class="stem-title-wrap">
-          <span class="stem-name">${meta.name}</span>
-          <span class="stem-category">${meta.cat}</span>
+          <div class="stem-icon-badge" style="background: ${preset.color}22; color: ${preset.color};">
+            <i data-lucide="${preset.icon}"></i>
+          </div>
+          <div class="stem-label-group">
+            <span class="stem-name">${preset.name}</span>
+            <span class="stem-category">${preset.cat}</span>
+          </div>
         </div>
+        <a href="${stemData.url}" download="${stemData.filename}" class="btn-stem-download" title="Baixar WAV Master">
+          <i data-lucide="download"></i>
+        </a>
       </div>
 
-      <div class="stem-player-controls">
-        <audio controls preload="metadata" src="${info.url}"></audio>
+      <div class="stem-player">
+        <audio controls src="${stemData.url}" preload="metadata"></audio>
       </div>
-
-      <a href="${info.url}" download="${info.filename}" class="stem-download-btn">
-        <i data-lucide="download"></i>
-        <span>WAV</span>
-      </a>
     `;
 
     stemsContainer.appendChild(card);
   });
 
-  if (entries.length > 0) {
-    downloadAllBtn.href = `/api/download-all/${job.id}`;
-    downloadAllBtn.style.display = "inline-flex";
-  } else {
-    downloadAllBtn.style.display = "none";
-  }
-
-  refreshIcons();
-}
-
-// ── Reset & Retry Actions ──
-newSeparationBtn.addEventListener("click", () => {
-  hideAll();
-  resetFile();
-});
-
-retryBtn.addEventListener("click", () => {
-  hideAll();
-  resetFile();
-});
-
-// ── Screen Transitions ──
-function hideAll() {
-  processingSection.style.display = "none";
-  resultsSection.style.display = "none";
-  errorSection.style.display = "none";
+  renderIcons();
 }
 
 function showError(msg) {
-  hideAll();
+  stopTimer();
+  clearInterval(pollInterval);
+  processingSection.style.display = "none";
   errorSection.style.display = "block";
-  errorMsg.textContent = msg;
-  refreshIcons();
+  if (errorMsg) errorMsg.textContent = msg;
+  renderIcons();
 }
 
-function hideError() {
+function resetToHome() {
+  stopTimer();
+  clearInterval(pollInterval);
+  currentJobId = null;
+  clearFile();
+  workspaceContainer.style.display = "block";
+  processingSection.style.display = "none";
+  resultsSection.style.display = "none";
   errorSection.style.display = "none";
+  renderIcons();
 }
 
-// Initial icon hydration
+// ── Event Handlers ─────────────────────────────────────────────
+if (startBtn) startBtn.addEventListener("click", startSeparation);
+if (retryBtn) retryBtn.addEventListener("click", resetToHome);
+if (newSeparationBtn) newSeparationBtn.addEventListener("click", resetToHome);
+
+// Initial call
 document.addEventListener("DOMContentLoaded", () => {
-  refreshIcons();
+  renderIcons();
 });
+renderIcons();
