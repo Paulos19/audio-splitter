@@ -1,72 +1,85 @@
-/* ═══════════════════════════════════════════
-   AUDIO SPLITTER — Frontend Logic
-   ═══════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════
+   AUDIO SPLITTER — Frontend Controller Logic
+   Refined Lucide icons support, dynamic timer, stem mixers & animations
+   ═══════════════════════════════════════════════════════════════════ */
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
-// ── Elements ──
+// ── DOM References ──
 const uploadZone = $("#uploadZone");
 const fileInput = $("#fileInput");
 const uploadContent = $("#uploadContent");
-const fileInfo = $("#fileInfo");
+const fileDetails = $("#fileDetails");
 const fileName = $("#fileName");
 const fileSize = $("#fileSize");
-const fileRemove = $("#fileRemove");
-const btnSplit = $("#btnSplit");
-const modelCards = $("#modelCards");
-const stemsCards = $("#stemsCards");
+const removeFileBtn = $("#removeFileBtn");
+const processBtn = $("#processBtn");
+
 const processingSection = $("#processingSection");
-const processingFile = $("#processingFile");
-const progressFill = $("#progressFill");
-const progressText = $("#progressText");
+const progressMsg = $("#progressMsg");
+const progressBar = $("#progressBar");
+const elapsedTimer = $("#elapsedTimer");
+
 const resultsSection = $("#resultsSection");
-const resultsTime = $("#resultsTime");
-const stemsGrid = $("#stemsGrid");
+const stemsContainer = $("#stemsContainer");
+const downloadAllBtn = $("#downloadAllBtn");
+const newSeparationBtn = $("#newSeparationBtn");
+
 const errorSection = $("#errorSection");
-const errorMessage = $("#errorMessage");
-const btnRetry = $("#btnRetry");
+const errorMsg = $("#errorMsg");
+const retryBtn = $("#retryBtn");
 
 // ── State ──
 let selectedFile = null;
 let selectedModel = "htdemucs";
 let selectedStems = "vocals";
-let currentAudio = null;
-let currentPlayBtn = null;
+let currentJobId = null;
+let pollInterval = null;
+let timerInterval = null;
+let startTime = null;
 
-// ── Model Selection ──
-modelCards.addEventListener("click", (e) => {
-  const card = e.target.closest(".model-card");
-  if (!card) return;
-  modelCards.querySelectorAll(".model-card").forEach((c) => c.classList.remove("active"));
-  card.classList.add("active");
-  selectedModel = card.dataset.model;
+// ── Lucide Icon Refresh Helper ──
+function refreshIcons() {
+  if (window.lucide && typeof window.lucide.createIcons === "function") {
+    window.lucide.createIcons();
+  }
+}
+
+// ── Model Selection Handler ──
+$$("#modelCards .opt-btn").forEach((card) => {
+  card.addEventListener("click", () => {
+    $$("#modelCards .opt-btn").forEach((c) => c.classList.remove("active"));
+    card.classList.add("active");
+    selectedModel = card.dataset.model;
+  });
 });
 
-// ── Stems Selection ──
-stemsCards.addEventListener("click", (e) => {
-  const card = e.target.closest(".stem-card");
-  if (!card) return;
-  stemsCards.querySelectorAll(".stem-card").forEach((c) => c.classList.remove("active"));
-  card.classList.add("active");
-  selectedStems = card.dataset.stems;
+// ── Stems Selection Handler ──
+$$("#stemsCards .opt-btn").forEach((card) => {
+  card.addEventListener("click", () => {
+    $$("#stemsCards .opt-btn").forEach((c) => c.classList.remove("active"));
+    card.classList.add("active");
+    selectedStems = card.dataset.stems;
+  });
 });
 
-// ── Upload Zone — Click ──
+// ── Drag & Drop Events ──
 uploadZone.addEventListener("click", (e) => {
-  // Don't open file dialog if clicking remove button
-  if (e.target.closest("#fileRemove")) return;
+  if (e.target.closest("#removeFileBtn")) return;
   fileInput.click();
 });
 
-// ── Upload Zone — Drag & Drop ──
 uploadZone.addEventListener("dragover", (e) => {
   e.preventDefault();
   uploadZone.classList.add("drag-over");
 });
-uploadZone.addEventListener("dragleave", () => {
+
+uploadZone.addEventListener("dragleave", (e) => {
+  e.preventDefault();
   uploadZone.classList.remove("drag-over");
 });
+
 uploadZone.addEventListener("drop", (e) => {
   e.preventDefault();
   uploadZone.classList.remove("drag-over");
@@ -75,54 +88,81 @@ uploadZone.addEventListener("drop", (e) => {
   }
 });
 
-// ── File Input Change ──
 fileInput.addEventListener("change", () => {
   if (fileInput.files.length > 0) {
     handleFile(fileInput.files[0]);
   }
 });
 
-// ── Handle File ──
+// ── File Ingestion ──
 function handleFile(file) {
-  const ext = file.name.split(".").pop().toLowerCase();
-  const allowed = ["mp3", "wav", "flac", "ogg", "m4a", "aac", "wma"];
+  const allowed = [".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".wma"];
+  const ext = "." + file.name.split(".").pop().toLowerCase();
+  
   if (!allowed.includes(ext)) {
-    alert(`Formato .${ext} não suportado.\nUse: ${allowed.join(", ")}`);
+    showError("Formato não suportado. Por favor, envie arquivos de áudio válidos: MP3, WAV, FLAC, OGG, M4A ou AAC.");
     return;
   }
+
+  if (file.size > 100 * 1024 * 1024) {
+    showError("Arquivo muito grande. O limite máximo para separação na nuvem é de 100MB.");
+    return;
+  }
+
   selectedFile = file;
   fileName.textContent = file.name;
-  fileSize.textContent = formatSize(file.size);
+  fileSize.textContent = (file.size / (1024 * 1024)).toFixed(1) + " MB";
+
   uploadContent.style.display = "none";
-  fileInfo.style.display = "flex";
-  btnSplit.disabled = false;
+  fileDetails.style.display = "flex";
+  processBtn.disabled = false;
+  hideError();
+  refreshIcons();
 }
 
-// ── Remove File ──
-fileRemove.addEventListener("click", (e) => {
+removeFileBtn.addEventListener("click", (e) => {
   e.stopPropagation();
-  resetUpload();
+  resetFile();
 });
 
-function resetUpload() {
+function resetFile() {
   selectedFile = null;
   fileInput.value = "";
-  uploadContent.style.display = "";
-  fileInfo.style.display = "none";
-  btnSplit.disabled = true;
+  uploadContent.style.display = "flex";
+  fileDetails.style.display = "none";
+  processBtn.disabled = true;
+  refreshIcons();
 }
 
-// ── Split Button ──
-btnSplit.addEventListener("click", async () => {
+// ── Timer Logic ──
+function startTimer() {
+  startTime = Date.now();
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+    const mins = String(Math.floor(elapsedSeconds / 60)).padStart(2, "0");
+    const secs = String(elapsedSeconds % 60).padStart(2, "0");
+    elapsedTimer.textContent = `${mins}:${secs}`;
+  }, 1000);
+}
+
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+}
+
+// ── Submit Processing Job ──
+processBtn.addEventListener("click", async () => {
   if (!selectedFile) return;
 
-  // Show processing
   hideAll();
   processingSection.style.display = "block";
-  processingFile.textContent = selectedFile.name;
-  progressFill.style.width = "0%";
-  progressText.textContent = "Enviando arquivo...";
-  btnSplit.disabled = true;
+  progressMsg.textContent = "Fazendo upload seguro e enfileirando no pipeline Demucs...";
+  progressBar.style.width = "15%";
+  startTimer();
+  refreshIcons();
 
   const formData = new FormData();
   formData.append("audio", selectedFile);
@@ -130,139 +170,153 @@ btnSplit.addEventListener("click", async () => {
   formData.append("stems", selectedStems);
 
   try {
-    const res = await fetch("/api/separate", { method: "POST", body: formData });
+    const res = await fetch("/api/split", {
+      method: "POST",
+      body: formData,
+    });
+
     const data = await res.json();
 
-    if (!res.ok) throw new Error(data.error || "Erro ao enviar");
+    if (!res.ok) {
+      throw new Error(data.error || "Erro ao iniciar o processamento");
+    }
 
-    progressText.textContent = "Processando com Demucs AI...";
-    pollStatus(data.jobId);
+    currentJobId = data.jobId;
+    pollStatus(currentJobId);
   } catch (err) {
+    stopTimer();
     showError(err.message);
   }
 });
 
-// ── Poll Job Status ──
+// ── Job Polling ──
 function pollStatus(jobId) {
-  const interval = setInterval(async () => {
+  if (pollInterval) clearInterval(pollInterval);
+
+  pollInterval = setInterval(async () => {
     try {
       const res = await fetch(`/api/status/${jobId}`);
       const job = await res.json();
 
-      if (job.status === "processing") {
-        const pct = job.progress || 0;
-        progressFill.style.width = `${pct}%`;
-        progressText.textContent = pct > 0
-          ? `Separando stems... ${pct}%`
-          : "Processando com Demucs AI... (pode levar alguns minutos)";
+      if (job.message) {
+        progressMsg.textContent = job.message;
       }
 
-      if (job.status === "done") {
-        clearInterval(interval);
-        showResults(job);
+      if (job.progress) {
+        progressBar.style.width = `${job.progress}%`;
+      }
+
+      if (job.status === "completed") {
+        clearInterval(pollInterval);
+        stopTimer();
+        progressBar.style.width = "100%";
+        progressMsg.textContent = "Mixdown finalizado com sucesso!";
+        setTimeout(() => showResults(job), 600);
       }
 
       if (job.status === "error") {
-        clearInterval(interval);
-        showError(job.error || "Erro desconhecido no processamento");
+        clearInterval(pollInterval);
+        stopTimer();
+        showError(job.error || "Falha durante o processamento acústico neural.");
       }
     } catch {
-      // Network error, keep polling
+      // Network hiccup, keep retrying
     }
   }, 1500);
 }
 
-// ── Show Results ──
+// ── Render Results Deck ──
+const STEM_PRESETS = {
+  vocals: { name: "Vocal Principal & Coro", cat: "Acapella Lead", icon: "mic", cls: "stem-vocals" },
+  instrumental: { name: "Playback Instrumental", cat: "Backing Track", icon: "music", cls: "stem-instrumental" },
+  no_vocals: { name: "Playback Instrumental", cat: "Backing Track", icon: "music", cls: "stem-instrumental" },
+  drums: { name: "Bateria & Percussão", cat: "Rhythm & Transient", icon: "disc", cls: "stem-drums" },
+  bass: { name: "Baixo & Sub-Frequências", cat: "Low-End Spectrum", icon: "activity", cls: "stem-bass" },
+  other: { name: "Sintetizadores & Guitarras", cat: "Harmonics & FX", icon: "sliders", cls: "stem-other" }
+};
+
 function showResults(job) {
   hideAll();
-  resultsSection.style.display = "block";
-  resultsTime.textContent = `Processado em ${job.duration}s com ${job.model}`;
+  resultsSection.style.display = "flex";
+  stemsContainer.innerHTML = "";
 
-  stemsGrid.innerHTML = "";
+  const stems = job.stems || {};
+  const entries = Object.entries(stems);
 
-  for (const file of job.files) {
-    const div = document.createElement("div");
-    div.className = "stem-result";
-    div.innerHTML = `
-      <span class="stem-result-icon">${file.icon}</span>
-      <div class="stem-result-info">
-        <p class="stem-result-name">${file.label}</p>
-        <p class="stem-result-size">${formatSize(file.size)}</p>
+  entries.forEach(([key, info]) => {
+    const meta = STEM_PRESETS[key] || {
+      name: key.toUpperCase(),
+      cat: "Audio Track",
+      icon: "volume-2",
+      cls: "stem-other"
+    };
+
+    const card = document.createElement("div");
+    card.className = `stem-channel-card ${meta.cls}`;
+    card.innerHTML = `
+      <div class="stem-meta">
+        <div class="stem-badge-tag">
+          <i data-lucide="${meta.icon}"></i>
+        </div>
+        <div class="stem-title-wrap">
+          <span class="stem-name">${meta.name}</span>
+          <span class="stem-category">${meta.cat}</span>
+        </div>
       </div>
-      <div class="stem-result-actions">
-        <button type="button" class="btn-play" data-url="${file.url}" title="Play/Pause">▶</button>
-        <a href="${file.url}" download class="btn-download" title="Download">⬇</a>
+
+      <div class="stem-player-controls">
+        <audio controls preload="metadata" src="${info.url}"></audio>
       </div>
+
+      <a href="${info.url}" download="${info.filename}" class="stem-download-btn">
+        <i data-lucide="download"></i>
+        <span>WAV</span>
+      </a>
     `;
-    stemsGrid.appendChild(div);
-  }
 
-  // Play buttons
-  stemsGrid.querySelectorAll(".btn-play").forEach((btn) => {
-    btn.addEventListener("click", () => togglePlay(btn));
+    stemsContainer.appendChild(card);
   });
 
-  // Reset upload for next use
-  resetUpload();
-}
-
-// ── Audio Play/Pause ──
-function togglePlay(btn) {
-  const url = btn.dataset.url;
-
-  // If clicking same button, toggle
-  if (currentAudio && currentPlayBtn === btn) {
-    if (currentAudio.paused) {
-      currentAudio.play();
-      btn.textContent = "⏸";
-    } else {
-      currentAudio.pause();
-      btn.textContent = "▶";
-    }
-    return;
+  if (entries.length > 0) {
+    downloadAllBtn.href = `/api/download-all/${job.id}`;
+    downloadAllBtn.style.display = "inline-flex";
+  } else {
+    downloadAllBtn.style.display = "none";
   }
 
-  // Stop previous
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio = null;
-    if (currentPlayBtn) currentPlayBtn.textContent = "▶";
-  }
-
-  // Play new
-  currentAudio = new Audio(url);
-  currentPlayBtn = btn;
-  btn.textContent = "⏸";
-  currentAudio.play();
-  currentAudio.addEventListener("ended", () => {
-    btn.textContent = "▶";
-    currentAudio = null;
-    currentPlayBtn = null;
-  });
+  refreshIcons();
 }
 
-// ── Show Error ──
-function showError(msg) {
+// ── Reset & Retry Actions ──
+newSeparationBtn.addEventListener("click", () => {
   hideAll();
-  errorSection.style.display = "block";
-  errorMessage.textContent = msg;
-}
-
-// ── Retry ──
-btnRetry.addEventListener("click", () => {
-  hideAll();
-  resetUpload();
+  resetFile();
 });
 
-// ── Helpers ──
+retryBtn.addEventListener("click", () => {
+  hideAll();
+  resetFile();
+});
+
+// ── Screen Transitions ──
 function hideAll() {
   processingSection.style.display = "none";
   resultsSection.style.display = "none";
   errorSection.style.display = "none";
 }
 
-function formatSize(bytes) {
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+function showError(msg) {
+  hideAll();
+  errorSection.style.display = "block";
+  errorMsg.textContent = msg;
+  refreshIcons();
 }
+
+function hideError() {
+  errorSection.style.display = "none";
+}
+
+// Initial icon hydration
+document.addEventListener("DOMContentLoaded", () => {
+  refreshIcons();
+});

@@ -3,148 +3,323 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Audio Splitter — AI Music Separation</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Audio Splitter — AI Stem Demucs Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <!-- Background Orbs -->
-  <div class="bg-orb bg-orb-1"></div>
-  <div class="bg-orb bg-orb-2"></div>
-  <div class="bg-orb bg-orb-3"></div>
+  <!-- Ambient Lights & Grid Canvas -->
+  <div class="ambient-glow glow-cyan"></div>
+  <div class="ambient-glow glow-violet"></div>
+  <div class="ambient-glow glow-amber"></div>
+  <div class="bg-cyber-grid"></div>
 
-  <div class="container">
+  <!-- Main App Shell -->
+  <div class="app-container">
 
-    <!-- Header -->
-    <header class="header">
-      <div class="logo">
-        <span class="logo-icon">🎵</span>
-        <span class="logo-text">Audio Splitter</span>
+    <!-- Top Navigation Header -->
+    <header class="studio-nav">
+      <div class="nav-brand">
+        <div class="brand-badge-icon">
+          <i data-lucide="waveform"></i>
+        </div>
+        <div class="brand-meta">
+          <span class="brand-title">AudioSplitter<span class="accent-dot">.</span></span>
+          <span class="brand-sub">Neural Stem Separator Studio</span>
+        </div>
       </div>
-      <div class="badge">
-        <span class="badge-dot"></span>
-        Powered by Meta Demucs AI
+
+      <div class="nav-center-pill">
+        <span class="pulse-indicator"></span>
+        <span class="pill-engine">HYBRID TRANSFORMER DEMUCS v4</span>
+        <span class="pill-divider">•</span>
+        <span class="pill-spec">Lossless 32-bit Float</span>
+      </div>
+
+      <div class="nav-actions">
+        <a href="https://github.com/facebookresearch/demucs" target="_blank" rel="noreferrer" class="nav-meta-link">
+          <i data-lucide="cpu"></i>
+          <span>Meta AI Engine</span>
+        </a>
       </div>
     </header>
 
-    <!-- Hero -->
-    <section class="hero">
-      <h1 class="hero-title">Separe qualquer música<br />em <span class="gradient-text">stems isolados</span></h1>
-      <p class="hero-subtitle">
-        Extraia vocals, instrumental, bateria e baixo de qualquer música usando 
-        inteligência artificial de nível profissional.
+    <!-- Studio Hero -->
+    <section class="hero-section">
+      <div class="hero-chip">
+        <i data-lucide="sparkles"></i>
+        <span>Algoritmo de Separação de Áudio de Estúdio</span>
+      </div>
+      <h1 class="hero-headline">
+        Isole vozes, baterias e instrumentos com precisão cirúrgica
+      </h1>
+      <p class="hero-description">
+        Separe stems acústicos em faixas individuais cristalinas utilizando inteligência artificial de última geração. Sem ruídos residuais, preservando dinâmica e imagem estéreo.
       </p>
     </section>
 
-    <!-- Settings -->
-    <section class="settings">
-      <div class="setting-group">
-        <label class="setting-label">Modelo AI</label>
-        <div class="model-cards" id="modelCards">
-          <button type="button" class="model-card active" data-model="htdemucs">
-            <span class="model-icon">⚡</span>
-            <span class="model-name">htdemucs</span>
-            <span class="model-desc">Hybrid Transformer — Rápido</span>
-          </button>
-          <button type="button" class="model-card" data-model="htdemucs_ft">
-            <span class="model-icon">🎯</span>
-            <span class="model-name">htdemucs_ft</span>
-            <span class="model-desc">Fine-tuned — Melhor qualidade</span>
-          </button>
+    <!-- Control Rack: Model & Stems Configuration -->
+    <section class="rack-section">
+      <div class="rack-header">
+        <div class="rack-title">
+          <i data-lucide="sliders"></i>
+          <span>Configuração do Pipeline Neural</span>
         </div>
+        <div class="rack-tag">Low-Latency Processing</div>
       </div>
 
-      <div class="setting-group">
-        <label class="setting-label">Modo de Separação</label>
-        <div class="stems-cards" id="stemsCards">
-          <button type="button" class="stem-card active" data-stems="vocals">
-            <span class="stem-icon">🎤</span>
-            <span class="stem-name">Vocals + Instrumental</span>
-            <span class="stem-desc">2 stems — mais rápido</span>
-          </button>
-          <button type="button" class="stem-card" data-stems="all">
-            <span class="stem-icon">🎼</span>
-            <span class="stem-name">Separação Completa</span>
-            <span class="stem-desc">4 stems — vocals, drums, bass, other</span>
-          </button>
+      <div class="rack-grid">
+        <!-- Model Selection -->
+        <div class="rack-card">
+          <div class="rack-label">
+            <span class="step-num">01</span>
+            <span>Arquitetura do Modelo</span>
+          </div>
+          <div class="selector-options" id="modelCards">
+            <button type="button" class="opt-btn active" data-model="htdemucs">
+              <div class="opt-indicator"></div>
+              <div class="opt-info">
+                <div class="opt-name">htdemucs <span class="badge-rec">Recomendado</span></div>
+                <div class="opt-desc">Hybrid Transformer v4 ultra-rápido com excelente clareza espectral</div>
+              </div>
+            </button>
+            <button type="button" class="opt-btn" data-model="htdemucs_ft">
+              <div class="opt-indicator"></div>
+              <div class="opt-info">
+                <div class="opt-name">htdemucs_ft <span class="badge-pro">Fine-Tuned</span></div>
+                <div class="opt-desc">Modelo treinado por 4x mais épocas para mixagens complexas e orquestras</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Mode Selection -->
+        <div class="rack-card">
+          <div class="rack-label">
+            <span class="step-num">02</span>
+            <span>Canais de Separação (Stems)</span>
+          </div>
+          <div class="selector-options" id="stemsCards">
+            <button type="button" class="opt-btn active" data-stems="vocals">
+              <div class="opt-indicator"></div>
+              <div class="opt-info">
+                <div class="opt-name">Vocals + Instrumental <span class="badge-speed">2x Mais Rápido</span></div>
+                <div class="opt-desc">Gera 2 canais dedicados. Ideal para Karaokê, Acapellas e Remixes</div>
+              </div>
+            </button>
+            <button type="button" class="opt-btn" data-stems="all">
+              <div class="opt-indicator"></div>
+              <div class="opt-info">
+                <div class="opt-name">Separação Completa <span class="badge-pro">4 Stems Pro</span></div>
+                <div class="opt-desc">Vocals + Bateria (Drums) + Baixo (Bass) + Outros instrumentos (Other)</div>
+              </div>
+            </button>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Upload Zone -->
-    <section class="upload-section">
-      <div class="upload-zone" id="uploadZone">
+    <!-- Upload & Master Dropzone -->
+    <section class="dropzone-section">
+      <div class="dropzone-card" id="uploadZone">
         <input type="file" id="fileInput" accept=".mp3,.wav,.flac,.ogg,.m4a,.aac,.wma" hidden />
-        <div class="upload-content" id="uploadContent">
-          <div class="upload-icon">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
+        
+        <div class="dropzone-inner" id="uploadContent">
+          <div class="dropzone-radar">
+            <div class="radar-circle circle-1"></div>
+            <div class="radar-circle circle-2"></div>
+            <div class="radar-center-icon">
+              <i data-lucide="cloud-arrow-up"></i>
+            </div>
           </div>
-          <p class="upload-title">Arraste sua música aqui</p>
-          <p class="upload-hint">ou clique para selecionar — MP3, WAV, FLAC, OGG, M4A (até 200MB)</p>
+
+          <div class="dropzone-text">
+            <h3 class="dropzone-title">Arraste e solte o arquivo de áudio master aqui</h3>
+            <p class="dropzone-subtitle">ou clique em qualquer área do painel para explorar suas faixas</p>
+          </div>
+
+          <div class="dropzone-badges">
+            <span class="format-badge"><i data-lucide="file-audio"></i> MP3</span>
+            <span class="format-badge"><i data-lucide="file-audio"></i> WAV</span>
+            <span class="format-badge"><i data-lucide="file-audio"></i> FLAC</span>
+            <span class="format-badge"><i data-lucide="file-audio"></i> OGG</span>
+            <span class="format-badge"><i data-lucide="file-audio"></i> M4A</span>
+            <span class="format-badge limit-pill">Até 100MB</span>
+          </div>
         </div>
-        <!-- File selected state -->
-        <div class="file-info" id="fileInfo" style="display:none;">
-          <div class="file-icon">🎵</div>
-          <div class="file-details">
-            <p class="file-name" id="fileName"></p>
-            <p class="file-size" id="fileSize"></p>
+
+        <!-- Selected File State -->
+        <div class="file-preview-card" id="fileDetails" style="display: none;">
+          <div class="file-icon-box">
+            <i data-lucide="music-2"></i>
           </div>
-          <button type="button" class="file-remove" id="fileRemove" title="Remover">✕</button>
+          <div class="file-meta">
+            <span class="file-name" id="fileName">musica.mp3</span>
+            <span class="file-size" id="fileSize">0 MB</span>
+          </div>
+          <button type="button" class="btn-clear" id="removeFileBtn" title="Remover arquivo">
+            <i data-lucide="x"></i>
+          </button>
         </div>
       </div>
 
-      <button type="button" class="btn-split" id="btnSplit" disabled>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="5 3 19 12 5 21 5 3" />
-        </svg>
-        Separar Música
-      </button>
+      <!-- Action Button -->
+      <div class="action-dock">
+        <button type="button" class="btn-process-glow" id="processBtn" disabled>
+          <span class="btn-glow-layer"></span>
+          <span class="btn-content">
+            <i data-lucide="sparkle"></i>
+            <span>Iniciar Separação Neural</span>
+            <i data-lucide="arrow-right" class="arrow-icon"></i>
+          </span>
+        </button>
+      </div>
     </section>
 
-    <!-- Processing -->
-    <section class="processing-section" id="processingSection" style="display:none;">
-      <div class="processing-card">
-        <div class="processing-header">
-          <div class="spinner"></div>
+    <!-- Neural Processing Engine Live Tracker -->
+    <section class="processing-section" id="processingSection" style="display: none;">
+      <div class="console-box">
+        <div class="console-header">
+          <div class="console-status-badge">
+            <span class="sonar-dot"></span>
+            <span class="status-live-text">PROCESSANDO EM TEMPO REAL</span>
+          </div>
+          <div class="console-time-badge" id="elapsedTimer">00:00</div>
+        </div>
+
+        <!-- Live Wave Animation -->
+        <div class="spectrogram-visualizer">
+          <div class="spec-bar b1"></div>
+          <div class="spec-bar b2"></div>
+          <div class="spec-bar b3"></div>
+          <div class="spec-bar b4"></div>
+          <div class="spec-bar b5"></div>
+          <div class="spec-bar b6"></div>
+          <div class="spec-bar b7"></div>
+          <div class="spec-bar b8"></div>
+          <div class="spec-bar b9"></div>
+          <div class="spec-bar b10"></div>
+          <div class="spec-bar b11"></div>
+          <div class="spec-bar b12"></div>
+          <div class="spec-bar b13"></div>
+          <div class="spec-bar b14"></div>
+          <div class="spec-bar b15"></div>
+          <div class="spec-bar b16"></div>
+        </div>
+
+        <!-- Step Feed -->
+        <div class="progress-message-wrapper">
+          <div class="spinner-cyber"></div>
+          <span class="progress-message" id="progressMsg">Iniciando inferência nos tensores de áudio...</span>
+        </div>
+
+        <div class="progress-track">
+          <div class="progress-fill" id="progressBar" style="width: 25%;"></div>
+        </div>
+
+        <div class="console-footer-notes">
+          <i data-lucide="info"></i>
+          <span>O Demucs roda inferência multi-camada com transformadores espectrais. Para músicas completas, o processo leva cerca de 1 a 2 minutos no servidor.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stems Mixing Desk / Results Section -->
+    <section class="results-section" id="resultsSection" style="display: none;">
+      <div class="results-top-bar">
+        <div class="results-header-info">
+          <div class="results-check-badge">
+            <i data-lucide="check"></i>
+          </div>
           <div>
-            <p class="processing-title">Processando com IA...</p>
-            <p class="processing-file" id="processingFile"></p>
+            <h2 class="results-title">Separação Concluída com Sucesso!</h2>
+            <p class="results-subtitle">Todos os stems isolados foram gerados em alta fidelidade.</p>
           </div>
         </div>
-        <div class="progress-bar">
-          <div class="progress-fill" id="progressFill"></div>
+
+        <div class="results-action-group">
+          <a id="downloadAllBtn" class="btn-download-bundle" href="#" download>
+            <i data-lucide="archive"></i>
+            <span>Baixar Todos (.ZIP)</span>
+          </a>
+          <button type="button" class="btn-reset-session" id="newSeparationBtn">
+            <i data-lucide="rotate-ccw"></i>
+            <span>Nova Música</span>
+          </button>
         </div>
-        <p class="progress-text" id="progressText">Iniciando separação...</p>
+      </div>
+
+      <!-- Master Audio Stem Deck -->
+      <div class="stem-deck-grid" id="stemsContainer">
+        <!-- Rendered dynamically by JS with Studio Glass Audio Players -->
       </div>
     </section>
 
-    <!-- Results -->
-    <section class="results-section" id="resultsSection" style="display:none;">
-      <div class="results-header">
-        <h2 class="results-title">✅ Separação Concluída!</h2>
-        <p class="results-time" id="resultsTime"></p>
-      </div>
-      <div class="stems-grid" id="stemsGrid"></div>
-    </section>
-
-    <!-- Error -->
-    <section class="error-section" id="errorSection" style="display:none;">
+    <!-- Error Callout Banner -->
+    <section class="error-banner" id="errorSection" style="display: none;">
       <div class="error-card">
-        <span class="error-icon">❌</span>
-        <p class="error-title">Erro no processamento</p>
-        <p class="error-message" id="errorMessage"></p>
-        <button type="button" class="btn-retry" id="btnRetry">Tentar novamente</button>
+        <div class="error-icon-box">
+          <i data-lucide="alert-triangle"></i>
+        </div>
+        <div class="error-content">
+          <h4>Falha no Processamento Neural</h4>
+          <p id="errorMsg">Não foi possível processar o arquivo de áudio.</p>
+        </div>
+        <button type="button" class="btn-error-retry" id="retryBtn">
+          <i data-lucide="refresh-cw"></i>
+          <span>Tentar Novamente</span>
+        </button>
       </div>
     </section>
+
+    <!-- Modern Studio Features Bento Grid -->
+    <section class="bento-features">
+      <div class="bento-item bento-accent">
+        <div class="bento-icon-tag"><i data-lucide="layers"></i></div>
+        <h3>Arquitetura HTDemucs</h3>
+        <p>Utiliza a rede Hybrid Transformer criada pela Meta AI Research, combinando U-Net com transformadores espectrogramáticos de longo alcance.</p>
+        <div class="bento-badge">SOTA Benchmark</div>
+      </div>
+
+      <div class="bento-item">
+        <div class="bento-icon-tag"><i data-lucide="sliders-horizontal"></i></div>
+        <h3>Mixer e Isolamento Solo</h3>
+        <p>Ouça e compare cada haste de áudio diretamente no player integrado com controle individual de volume, scrubber e preview instantâneo.</p>
+      </div>
+
+      <div class="bento-item">
+        <div class="bento-icon-tag"><i data-lucide="shield-check"></i></div>
+        <h3>Privacidade Total & Sem Compressão</h3>
+        <p>Seus arquivos são processados em contêiner dedicado e seus stems são gerados em formato sem perdas perceptíveis (Lossless WAV).</p>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="studio-footer">
+      <div class="footer-left">
+        <span>© 2026 Audio Splitter Studio</span>
+        <span class="footer-dot">•</span>
+        <span>Equipado com PyTorch & Meta Demucs v4</span>
+      </div>
+      <div class="footer-right">
+        <span class="status-indicator-green"></span>
+        <span>Servidor Online & GPU Pronta</span>
+      </div>
+    </footer>
 
   </div>
 
   <script src="app.js"></script>
+  <script>
+    // Inicializar ícones Lucide
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+  </script>
 </body>
 </html>
