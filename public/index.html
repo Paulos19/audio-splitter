@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Audio Splitter — AI Music Separation</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- Background Orbs -->
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+  <div class="bg-orb bg-orb-3"></div>
+
+  <div class="container">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">🎵</span>
+        <span class="logo-text">Audio Splitter</span>
+      </div>
+      <div class="badge">
+        <span class="badge-dot"></span>
+        Powered by Meta Demucs AI
+      </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero">
+      <h1 class="hero-title">Separe qualquer música<br />em <span class="gradient-text">stems isolados</span></h1>
+      <p class="hero-subtitle">
+        Extraia vocals, instrumental, bateria e baixo de qualquer música usando 
+        inteligência artificial de nível profissional.
+      </p>
+    </section>
+
+    <!-- Settings -->
+    <section class="settings">
+      <div class="setting-group">
+        <label class="setting-label">Modelo AI</label>
+        <div class="model-cards" id="modelCards">
+          <button type="button" class="model-card active" data-model="htdemucs">
+            <span class="model-icon">⚡</span>
+            <span class="model-name">htdemucs</span>
+            <span class="model-desc">Hybrid Transformer — Rápido</span>
+          </button>
+          <button type="button" class="model-card" data-model="htdemucs_ft">
+            <span class="model-icon">🎯</span>
+            <span class="model-name">htdemucs_ft</span>
+            <span class="model-desc">Fine-tuned — Melhor qualidade</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">Modo de Separação</label>
+        <div class="stems-cards" id="stemsCards">
+          <button type="button" class="stem-card active" data-stems="vocals">
+            <span class="stem-icon">🎤</span>
+            <span class="stem-name">Vocals + Instrumental</span>
+            <span class="stem-desc">2 stems — mais rápido</span>
+          </button>
+          <button type="button" class="stem-card" data-stems="all">
+            <span class="stem-icon">🎼</span>
+            <span class="stem-name">Separação Completa</span>
+            <span class="stem-desc">4 stems — vocals, drums, bass, other</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Upload Zone -->
+    <section class="upload-section">
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept=".mp3,.wav,.flac,.ogg,.m4a,.aac,.wma" hidden />
+        <div class="upload-content" id="uploadContent">
+          <div class="upload-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+          </div>
+          <p class="upload-title">Arraste sua música aqui</p>
+          <p class="upload-hint">ou clique para selecionar — MP3, WAV, FLAC, OGG, M4A (até 200MB)</p>
+        </div>
+        <!-- File selected state -->
+        <div class="file-info" id="fileInfo" style="display:none;">
+          <div class="file-icon">🎵</div>
+          <div class="file-details">
+            <p class="file-name" id="fileName"></p>
+            <p class="file-size" id="fileSize"></p>
+          </div>
+          <button type="button" class="file-remove" id="fileRemove" title="Remover">✕</button>
+        </div>
+      </div>
+
+      <button type="button" class="btn-split" id="btnSplit" disabled>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="5 3 19 12 5 21 5 3" />
+        </svg>
+        Separar Música
+      </button>
+    </section>
+
+    <!-- Processing -->
+    <section class="processing-section" id="processingSection" style="display:none;">
+      <div class="processing-card">
+        <div class="processing-header">
+          <div class="spinner"></div>
+          <div>
+            <p class="processing-title">Processando com IA...</p>
+            <p class="processing-file" id="processingFile"></p>
+          </div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <p class="progress-text" id="progressText">Iniciando separação...</p>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <section class="results-section" id="resultsSection" style="display:none;">
+      <div class="results-header">
+        <h2 class="results-title">✅ Separação Concluída!</h2>
+        <p class="results-time" id="resultsTime"></p>
+      </div>
+      <div class="stems-grid" id="stemsGrid"></div>
+    </section>
+
+    <!-- Error -->
+    <section class="error-section" id="errorSection" style="display:none;">
+      <div class="error-card">
+        <span class="error-icon">❌</span>
+        <p class="error-title">Erro no processamento</p>
+        <p class="error-message" id="errorMessage"></p>
+        <button type="button" class="btn-retry" id="btnRetry">Tentar novamente</button>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
