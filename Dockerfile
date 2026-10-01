@@ -10,16 +10,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-venv \
+    python3-dev \
     ffmpeg \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Create Python virtual environment and install Demucs
+# Create Python virtual environment and install Demucs + dependencies
 RUN python3 -m venv /opt/demucs-env \
-    && /opt/demucs-env/bin/pip install --no-cache-dir --upgrade pip \
+    && /opt/demucs-env/bin/pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && /opt/demucs-env/bin/pip install --no-cache-dir \
+        numpy \
+        torch==2.1.2+cpu --extra-index-url https://download.pytorch.org/whl/cpu \
     && /opt/demucs-env/bin/pip install --no-cache-dir demucs
 
-# Make demucs available in PATH
+# Make demucs venv available in PATH
 ENV PATH="/opt/demucs-env/bin:$PATH"
+ENV VIRTUAL_ENV="/opt/demucs-env"
 
 # Set working directory
 WORKDIR /app
@@ -37,8 +43,8 @@ RUN mkdir -p uploads output
 # Expose port
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+# Health check (generous start period for PyTorch model download)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
     CMD node -e "fetch('http://localhost:3000/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 
 # Start the server

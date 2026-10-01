@@ -45,6 +45,16 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", uptime: process.uptime(), jobs: jobs.size });
 });
 
+// ── Detect Python path (venv in Docker or system) ──
+function getPythonCmd() {
+  // Docker container has venv at /opt/demucs-env
+  const venvPython = "/opt/demucs-env/bin/python3";
+  if (process.platform !== "win32" && fs.existsSync(venvPython)) {
+    return venvPython;
+  }
+  return process.platform === "win32" ? "python" : "python3";
+}
+
 // ── POST /api/separate ──
 app.post("/api/separate", upload.single("audio"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
@@ -87,56 +97,62 @@ app.post("/api/separate", upload.single("audio"), (req, res) => {
   args.push("--mp3"); // output as mp3
   args.push(inputPath);
 
-  // Use python3 (works on both local and Docker)
-  const pythonCmd = process.platform === "win32" ? "python" : "python3";
+  // Use venv python in Docker, system python otherwise
+  const pythonCmd = getPythonCmd();
 
   console.log(`\n🎵 Job ${jobId} started`);
   console.log(`   File: ${originalName}`);
   console.log(`   Model: ${model}`);
-  console.log(`   Mode: ${stems === "vocals" ? "2 stems (vocals + instrumental)" : "4 stems (all)"}`);
-  console.log(`   Command: ${pythonCmd} ${args.join(" ")}`);
+  console.log(`   Mode: ${stems === "vocals" ? "2 stems (vocals + instrumental)" : "4 stems (full separation)"}`);
+  console.log(`   Python: ${pythonCmd}`);
+  console.log(`   Command: ${pythonCmd} ${args.join(" ")}\n`);
 
-  const proc = spawn(pythonCmd, args, { cwd: __dirname });
+  const proc = spawn(pythonCmd, args, {
+    env: {
+      ...process.env,
+      PYTHONUNBUFFERED: "1",
+      VIRTUAL_ENV: "/opt/demucs-env",
+    },
+  });
 
-  let lastLog = "";
+  let stderrBuffer = "";
+
+  proc.stdout.on("data", (data) => {
+    const line = data.toString().trim();
+    if (line) console.log(`   [demucs] ${line}`);
+  });
 
   proc.stderr.on("data", (data) => {
-    const text = data.toString().trim();
-    if (text) {
-      lastLog = text;
-      // Parse progress from demucs output
-      const pctMatch = text.match(/(\d+)%/);
-      if (pctMatch) {
-        job.progress = parseInt(pctMatch[1]);
-      }
-      console.log(`   [demucs] ${text}`);
+    const line = data.toString().trim();
+    stderrBuffer += line + "\n";
+    if (line) console.log(`   [demucs] ${line}`);
+
+    // Parse progress from demucs output
+    const pctMatch = line.match(/(\d+)%/);
+    if (pctMatch) {
+      job.progress = parseInt(pctMatch[1]);
     }
   });
 
-  proc.stdout.on("data", (data) => {
-    const text = data.toString().trim();
-    if (text) console.log(`   [demucs] ${text}`);
-  });
-
   proc.on("close", (code) => {
-    // Cleanup uploaded file
+    // Clean up uploaded file
     try { fs.unlinkSync(inputPath); } catch {}
 
     if (code !== 0) {
       job.status = "error";
-      job.error = lastLog || `Demucs exited with code ${code}`;
-      console.log(`   ❌ Job ${jobId} failed: ${job.error}`);
+      job.error = stderrBuffer.slice(-500) || `Demucs exited with code ${code}`;
+      console.log(`\n❌ Job ${jobId} failed (exit code ${code})`);
       return;
     }
 
     // Find output files recursively
     const findFiles = (dir) => {
-      const results = [];
+      let results = [];
       if (!fs.existsSync(dir)) return results;
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory()) {
-          results.push(...findFiles(fullPath));
+          results = results.concat(findFiles(fullPath));
         } else if (/\.(mp3|wav|flac)$/i.test(entry.name)) {
           results.push(fullPath);
         }
@@ -145,21 +161,39 @@ app.post("/api/separate", upload.single("audio"), (req, res) => {
     };
 
     const outputFiles = findFiles(outputDir);
+
     job.files = outputFiles.map((f) => {
-      const rel = path.relative(path.join(__dirname, "output"), f).replace(/\\/g, "/");
+      const relativePath = path.relative(path.join(__dirname, "output"), f);
       const stemName = path.basename(f, path.extname(f));
+
+      // Friendly stem labels
+      const labels = {
+        vocals: "🎤 Vocals (Acapella)",
+        no_vocals: "🎸 Instrumental",
+        drums: "🥁 Drums",
+        bass: "🎸 Bass",
+        other: "🎹 Other",
+      };
+
       return {
-        name: stemName,
+        name: labels[stemName] || stemName,
         filename: path.basename(f),
-        url: `/output/${rel}`,
-        size: fs.statSync(f).size,
+        url: `/output/${relativePath.replace(/\\/g, "/")}`,
       };
     });
 
     job.status = "done";
     job.progress = 100;
     const elapsed = ((Date.now() - job.startedAt) / 1000).toFixed(1);
-    console.log(`   ✅ Job ${jobId} completed in ${elapsed}s — ${job.files.length} stems`);
+    console.log(`\n✅ Job ${jobId} completed in ${elapsed}s`);
+    console.log(`   Output files: ${job.files.map((f) => f.name).join(", ")}\n`);
+  });
+
+  proc.on("error", (err) => {
+    job.status = "error";
+    job.error = `Falha ao iniciar Demucs: ${err.message}. Verifique se Python e Demucs estão instalados.`;
+    console.error(`\n❌ Job ${jobId} spawn error: ${err.message}`);
+    try { fs.unlinkSync(inputPath); } catch {}
   });
 
   res.json({ jobId, status: "processing" });
@@ -183,41 +217,36 @@ app.get("/api/status/:jobId", (req, res) => {
   });
 });
 
-// ── GET /api/gallery ──
-app.get("/api/gallery", (req, res) => {
-  const allJobs = Array.from(jobs.values())
-    .filter((j) => j.status === "done")
-    .sort((a, b) => b.startedAt - a.startedAt)
-    .slice(0, 20);
-  res.json(allJobs);
-});
+// ── Cleanup old jobs (every 30 min) ──
+setInterval(() => {
+  const maxAge = 60 * 60 * 1000; // 1 hour
+  for (const [id, job] of jobs) {
+    if (Date.now() - job.startedAt > maxAge) {
+      // Remove output files
+      try {
+        fs.rmSync(job.outputDir, { recursive: true, force: true });
+      } catch {}
+      jobs.delete(id);
+    }
+  }
+}, 30 * 60 * 1000);
 
-// ── Error handler ──
-app.use((err, req, res, next) => {
-  console.error("Server error:", err.message);
-  res.status(500).json({ error: err.message });
-});
-
-// ── Ensure directories exist ──
-fs.mkdirSync(path.join(__dirname, "uploads"), { recursive: true });
-fs.mkdirSync(path.join(__dirname, "output"), { recursive: true });
-
-// ── Start ──
+// ── Start server ──
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`
 🎵 ═══════════════════════════════════════════
-   AUDIO SPLITTER
-   AI-Powered Music Source Separation
+   AUDIO SPLITTER — Demucs AI
+   Vocal & Instrumental Separation
 🎵 ═══════════════════════════════════════════
 
    🌐 URL:     http://localhost:${PORT}
-   🧠 Engine:  Demucs (Meta AI)
+   🐍 Python:  ${getPythonCmd()}
    📁 Output:  ${path.join(__dirname, "output")}
 
    Modelos disponíveis:
-   ⚡ htdemucs    — Hybrid Transformer (rápido)
-   🎯 htdemucs_ft — Fine-tuned (melhor qualidade)
+   ⚡ htdemucs     → Hybrid Transformer (rápido)
+   🎯 htdemucs_ft  → Fine-tuned (melhor qualidade)
 
    Pronto para separar músicas! 🚀
-`);
+  `);
 });
