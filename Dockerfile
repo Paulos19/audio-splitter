@@ -16,12 +16,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Create Python virtual environment and install Demucs + dependencies
+# Step 1: Create venv and upgrade pip
 RUN python3 -m venv /opt/demucs-env \
-    && /opt/demucs-env/bin/pip install --no-cache-dir --upgrade pip setuptools wheel \
-    && /opt/demucs-env/bin/pip install --no-cache-dir \
-        numpy \
-        torch==2.1.2+cpu --extra-index-url https://download.pytorch.org/whl/cpu \
-    && /opt/demucs-env/bin/pip install --no-cache-dir demucs
+    && /opt/demucs-env/bin/pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Step 2: Install PyTorch CPU first (isolated to avoid numpy conflicts)
+RUN /opt/demucs-env/bin/pip install --no-cache-dir \
+    torch==2.1.2+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+
+# Step 3: Install numpy (pinned <2 for compatibility with torch 2.1.x and demucs)
+RUN /opt/demucs-env/bin/pip install --no-cache-dir "numpy<2"
+
+# Step 4: Install demucs (will use the already-installed torch and numpy)
+RUN /opt/demucs-env/bin/pip install --no-cache-dir demucs
+
+# Verify numpy is importable (fail build early if broken)
+RUN /opt/demucs-env/bin/python -c "import numpy; print(f'numpy {numpy.__version__} OK')"
 
 # Make demucs venv available in PATH
 ENV PATH="/opt/demucs-env/bin:$PATH"
